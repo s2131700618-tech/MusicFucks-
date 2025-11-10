@@ -1,0 +1,208 @@
+-- 放置位置：StarterGui -> LocalScript (這是您最終單一的 LocalScript)
+-- 此腳本修復了 Looped 屬性錯誤，並包含了拖動、開/關循環和本地音樂控制。
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Player = game.Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local Workspace = game:GetService("Workspace")
+
+-- 創建和控制 LocalScript 可控制的 Sound 元件
+local gameMusic = Instance.new("Sound")
+gameMusic.Name = "GameMusicLocal"
+gameMusic.Volume = 0.5
+gameMusic.PlaybackSpeed = 1.0
+gameMusic.Looped = true -- *** 修正為正確的屬性名稱：Looped = true ***
+gameMusic.Parent = Workspace 
+
+-- UI 元件參考變量
+local sG 
+local controlPanel 
+local openButton
+
+-- ------------------------------
+-- UI 創建與設置函數
+-- ------------------------------
+local function createUI()
+    -- 創建 ScreenGui 容器
+    sG = Instance.new("ScreenGui")
+    sG.Name = "MusicPlayerGui"
+    sG.IgnoreGuiInset = true
+    sG.Enabled = true
+    sG.Parent = PlayerGui
+
+    -- 創建 ControlPanel (主框架)
+    controlPanel = Instance.new("Frame")
+    controlPanel.Name = "ControlPanel"
+    controlPanel.Size = UDim2.new(0.4, 0, 0.6, 0)
+    controlPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+    controlPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    controlPanel.BackgroundColor3 = Color3.new(0, 0, 0)
+    controlPanel.BorderSizePixel = 0
+    controlPanel.Visible = false -- 初始設置為「關閉」狀態
+    controlPanel.Parent = sG
+
+    -- 創建 CloseButton (關閉主框架)
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Text = "關閉"
+    closeButton.TextScaled = true
+    closeButton.Size = UDim2.new(0.2, 0, 0.05, 0)
+    closeButton.Position = UDim2.new(0.05, 0, 0.6, 0)
+    closeButton.BackgroundColor3 = Color3.new(0.8, 0.2, 0.2) 
+    closeButton.TextColor3 = Color3.new(1, 1, 1)
+    closeButton.BorderSizePixel = 0
+    closeButton.Parent = sG 
+    
+    -- -------------------------
+    -- 創建 OpenButton (用於重複開啟框架)
+    -- -------------------------
+    openButton = Instance.new("TextButton")
+    openButton.Name = "OpenButton"
+    openButton.Text = "🎵 音樂控制"
+    openButton.TextScaled = true
+    openButton.Size = UDim2.new(0.15, 0, 0.05, 0)
+    openButton.Position = UDim2.new(0.05, 0, 0.9, 0) 
+    openButton.BackgroundColor3 = Color3.new(0.2, 0.5, 0.8) 
+    openButton.TextColor3 = Color3.new(1, 1, 1)
+    openButton.BorderSizePixel = 0
+    openButton.Parent = sG 
+    openButton.Visible = true -- 初始設置為「開啟按鈕可見」狀態
+
+    -- 創建 ToggleButton
+    local toggleMusicButton = Instance.new("TextButton")
+    toggleMusicButton.Name = "ToggleMusicButton"
+    toggleMusicButton.Text = "播放" -- 由於初始為關閉狀態，按鈕顯示為「播放」
+    toggleMusicButton.TextScaled = true
+    toggleMusicButton.Size = UDim2.new(0.5, 0, 0.07, 0)
+    toggleMusicButton.Position = UDim2.new(0.25, 0, 0.18, 0)
+    toggleMusicButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+    toggleMusicButton.TextColor3 = Color3.new(1, 1, 1)
+    toggleMusicButton.BorderSizePixel = 0
+    toggleMusicButton.Parent = controlPanel
+
+    -- 創建輸入欄位和標籤
+    local inputs = {
+        {name = "MusicIdInput", label = "ID:", default = "1234567890"},
+        {name = "VolumeInput", label = "音量:", default = "0.5"},
+        {name = "SpeedInput", label = "播放速度:", default = "1.0"},
+    }
+    local yPos = 0.4
+    local references = {}
+    for _, data in ipairs(inputs) do
+        -- 標籤
+        local label = Instance.new("TextLabel", controlPanel)
+        label.Text = data.label
+        label.TextScaled = true
+        label.Size = UDim2.new(0.35, 0, 0.05, 0)
+        label.Position = UDim2.new(0.05, 0, yPos, 0)
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.BackgroundColor3 = Color3.new(0, 0, 0)
+        label.BorderSizePixel = 0
+
+        -- 輸入框
+        local input = Instance.new("TextBox", controlPanel)
+        input.Name = data.name
+        input.Text = data.default
+        input.TextColor3 = Color3.new(1, 1, 1)
+        input.TextScaled = true
+        input.BorderSizePixel = 0
+        input.Size = UDim2.new(0.5, 0, 0.05, 0)
+        input.Position = UDim2.new(0.4, 0, yPos, 0)
+        input.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+        
+        references[data.name] = input
+        yPos = yPos + 0.1
+    end
+    
+    return closeButton, toggleMusicButton, references.MusicIdInput, references.VolumeInput, references.SpeedInput
+end
+
+-- 執行創建並獲取元件
+local closeButton, toggleMusicButton, musicIdInput, volumeInput, speedInput = createUI()
+
+-- ------------------------------
+-- 核心邏輯 (包含拖動、開/關循環和音樂控制)
+-- ------------------------------
+local isDragging = false
+local dragStartPos = Vector2.new(0, 0)
+local frameStartPos = UDim2.new(0, 0, 0, 0)
+
+-- 拖動邏輯
+RunService.RenderStepped:Connect(function()
+    if isDragging and controlPanel then
+        local currentMousePos = UserInputService:GetMouseLocation()
+        local deltaX = currentMousePos.X - dragStartPos.X
+        local deltaY = currentMousePos.Y - dragStartPos.Y
+        local screenWidth = sG.AbsoluteSize.X
+        local screenHeight = sG.AbsoluteSize.Y
+        local newScaleX = frameStartPos.Scale.X + (deltaX / screenWidth)
+        local newScaleY = frameStartPos.Scale.Y + (deltaY / screenHeight)
+        controlPanel.Position = UDim2.new(newScaleX, 0, newScaleY, 0)
+    end
+end)
+controlPanel.InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.UserInputType == Enum.UserInputType.MouseButton1 then 
+        isDragging = true
+        dragStartPos = UserInputService:GetMouseLocation() 
+        frameStartPos = controlPanel.Position 
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+-- 開/關循環系統
+closeButton.MouseButton1Click:Connect(function() 
+    controlPanel.Visible = false 
+    openButton.Visible = true 
+end)
+
+openButton.MouseButton1Click:Connect(function() 
+    controlPanel.Visible = true 
+    openButton.Visible = false
+end)
+
+
+-- 音樂控制邏輯 (直接操作本地 Sound 元件)
+toggleMusicButton.MouseButton1Click:Connect(function() 
+    if gameMusic.IsPlaying then
+        gameMusic:Pause()
+        toggleMusicButton.Text = "播放"
+    else
+        gameMusic:Play()
+        toggleMusicButton.Text = "暫停"
+    end
+end)
+
+-- 輸入處理邏輯 (直接操作本地 Sound 元件)
+local function handleInputChanged(inputObject)
+    local inputValue = inputObject.Text
+    
+    if inputObject == volumeInput then
+        local volumeValue = tonumber(inputValue)
+        if volumeValue then gameMusic.Volume = math.clamp(volumeValue, 0, 1) end
+    elseif inputObject == speedInput then
+        local speedValue = tonumber(inputValue)
+        if speedValue then gameMusic.PlaybackSpeed = math.clamp(speedValue, 0.1, 10) end
+    elseif inputObject == musicIdInput then
+        local assetId = inputValue:match("^%d+$")
+        if assetId then 
+            gameMusic.SoundId = "rbxassetid://" .. assetId
+            -- 設置新的 SoundId 後自動播放，如果當前是播放狀態
+            if not gameMusic.IsPlaying then
+                gameMusic:Play()
+                toggleMusicButton.Text = "暫停"
+            end
+        end
+    end
+end
+
+musicIdInput.FocusLost:Connect(function() handleInputChanged(musicIdInput) end)
+volumeInput.FocusLost:Connect(function() handleInputChanged(volumeInput) end)
+speedInput.FocusLost:Connect(function() handleInputChanged(speedInput) end)
+
+print("✅ 單一 LocalScript 已啟動，所有功能和屬性已修正。")
