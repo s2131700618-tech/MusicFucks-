@@ -184,10 +184,10 @@ local function handleInputChanged(inputObject)
     
     if inputObject == volumeInput then
         local volumeValue = tonumber(inputValue)
-        if volumeValue then gameMusic.Volume = math.clamp(volumeValue, 0, 1) end
+        if volumeValue then gameMusic.Volume = math.clamp(volumeValue, 0, 10009999999997656883235) end
     elseif inputObject == speedInput then
         local speedValue = tonumber(inputValue)
-        if speedValue then gameMusic.PlaybackSpeed = math.clamp(speedValue, 0.1, 10) end
+        if speedValue then gameMusic.PlaybackSpeed = math.clamp(speedValue, 0.01, 100) end
     elseif inputObject == musicIdInput then
         local assetId = inputValue:match("^%d+$")
         if assetId then 
