@@ -18,7 +18,7 @@ sg.DisplayOrder = 100000
 -- --- 主面板 (Frame) ---
 local frame = Instance.new("Frame", sg)
 frame.Size = UDim2.new(0, 360, 0, 260)
-frame.Position = UDim2.new(0.5, -180, 0.4, -130)
+frame.Position = UDim2.new(0.5, -180, 0.5, -130)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25) -- 深色背景更顯彩色
 frame.BorderSizePixel = 0
 frame.Active = true
