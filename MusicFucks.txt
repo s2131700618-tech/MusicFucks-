@@ -1,18 +1,18 @@
 local P, RS = game:GetService("Players").LocalPlayer, game:GetService("RunService")
 local PG = P:WaitForChild("PlayerGui")
 
--- 1. 徹底清除舊版
-if PG:FindFirstChild("UltraV6_FinalFixed") then PG.UltraV6_FinalFixed:Destroy() end
+-- 1. 清理
+if PG:FindFirstChild("UltraV6_VolumeFix") then PG.UltraV6_VolumeFix:Destroy() end
 
 local sound = P:FindFirstChild("UltraSnd") or Instance.new("Sound", P)
 sound.Name = "UltraSnd"
 sound.Looped = true
 
 local sg = Instance.new("ScreenGui", PG)
-sg.Name = "UltraV6_FinalFixed"
+sg.Name = "UltraV6_VolumeFix"
 sg.ResetOnSpawn = false
-sg.DisplayOrder = 999 -- 確保 UI 在所有東西最前面
-sg.ZIndexBehavior = Enum.ZIndexBehavior.Global -- 暴力層級管理
+sg.DisplayOrder = 999
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 -- --- 主面板 ---
 local frame = Instance.new("Frame", sg)
@@ -20,24 +20,24 @@ frame.Size = UDim2.new(0, 360, 0, 300)
 frame.Position = UDim2.new(0.5, -180, 0.5, -150)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.Active, frame.Draggable = true, true
-frame.Visible = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
 -- ⬛ 標題框
 local bar = Instance.new("Frame", frame)
 bar.Size = UDim2.new(1, 0, 0, 50)
 bar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-bar.BorderSizePixel = 0
 Instance.new("UICorner", bar)
 
--- 🌈 霓虹流光文字 (文字變色，框不變)
+-- 🌈 霓虹流光文字
 local title = Instance.new("TextLabel", bar)
 title.Size = UDim2.new(1, 0, 1, 0)
 title.BackgroundTransparency = 1
 title.Text = "Ultra 音樂控制器 V6.1"
-title.TextSize = 24
 title.Font = Enum.Font.GothamBold
 title.TextColor3 = Color3.new(1, 1, 1)
+
+-- 🟢 【字體大小設定：標題】
+title.TextSize = 24 
 
 local grad = Instance.new("UIGradient", title)
 local phases = {
@@ -66,9 +66,14 @@ local function createInp(txt, pos, def)
     local l = Instance.new("TextLabel", frame)
     l.Size, l.Position, l.Text, l.TextColor3, l.BackgroundTransparency = UDim2.new(0, 70, 0, 35), UDim2.new(0, 10, 0, pos), txt, Color3.new(0.8,0.8,0.8), 1
     l.Font, l.TextXAlignment = Enum.Font.GothamBold, Enum.TextXAlignment.Right
+    
+    -- 🟢 【字體大小設定：標籤】
+    l.TextSize = 18 
+    
     local b = Instance.new("TextBox", frame)
     b.Size, b.Position, b.Text, b.BackgroundColor3, b.TextColor3 = UDim2.new(0, 250, 0, 35), UDim2.new(0, 90, 0, pos), def, Color3.fromRGB(30,30,30), Color3.new(1,1,1)
     b.ClearTextOnFocus = false
+    b.TextSize = 18
     Instance.new("UICorner", b)
     return b
 end
@@ -77,16 +82,32 @@ local idBox = createInp("ID:", 65, "")
 local volBox = createInp("音量:", 110, "1")
 local spdBox = createInp("速度:", 155, "1")
 
--- 🔘 按鈕 (加入觸覺反饋)
+-- 🔘 按鈕工廠
 local function makeBtn(txt, pos, col, func)
     local b = Instance.new("TextButton", frame)
     b.Size, b.Position, b.BackgroundColor3 = UDim2.new(0.9, 0, 0, 40), UDim2.new(0.05, 0, 0, pos), col
     b.Text, b.TextColor3, b.Font = txt, Color3.new(1,1,1), Enum.Font.GothamBold
+    
+    -- 🟢 【字體大小設定：按鈕文字】
+    b.TextSize = 18 
+    
     b.AutoButtonColor = true
     Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(func) -- 使用更穩定的 Click 事件
+    b.MouseButton1Click:Connect(func)
     return b
 end
+
+-- 🎵 【核心修復：音量即時更新函數】
+local function ApplySettings()
+    local v = tonumber(volBox.Text)
+    local s = tonumber(spdBox.Text)
+    if v then sound.Volume = v end
+    if s then sound.PlaybackSpeed = s end
+end
+
+-- 當輸入文字改變時，立即同步音量
+volBox:GetPropertyChangedSignal("Text"):Connect(ApplySettings)
+spdBox:GetPropertyChangedSignal("Text"):Connect(ApplySettings)
 
 local loopBtn = makeBtn("🔄 循環播放: 開啟", 205, Color3.fromRGB(40,110,40), function()
     sound.Looped = not sound.Looped
@@ -95,35 +116,22 @@ local loopBtn = makeBtn("🔄 循環播放: 開啟", 205, Color3.fromRGB(40,110,
 end)
 
 makeBtn("▶️ 播放 / 停止", 250, Color3.fromRGB(0,100,200), function()
-    if sound.IsPlaying then sound:Stop() else
+    if sound.IsPlaying then 
+        sound:Stop() 
+    else
         local id = idBox.Text:match("%d+")
         if id then 
             sound.SoundId = "rbxassetid://"..id 
-            sound.Volume = tonumber(volBox.Text) or 1
-            sound.PlaybackSpeed = tonumber(spdBox.Text) or 1
+            ApplySettings() -- 播放時強制再同步一次
             sound:Play() 
         end
     end
 end)
 
--- 🎵 MF/I|O 側邊開關 (解決按不了的問題)
+-- 🎵 MF/I|O 側邊開關
 local open = Instance.new("TextButton", sg)
-open.Name = "ToggleOpen"
-open.Size = UDim2.new(0, 90, 0, 40)
-open.Position = UDim2.new(0.85, 0, 0.15, 0)
-open.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-open.Text = "MF/I|O"
-open.TextSize = 24
-open.TextColor3 = Color3.new(1, 1, 1)
-open.Font = Enum.Font.GothamBold
-open.ZIndex = 9999 -- 極高層級
-open.Draggable = true 
-open.Active = true 
+open.Size, open.Position, open.BackgroundColor3 = UDim2.new(0, 90, 0, 40), UDim2.new(0.85, 0, 0.15, 0), Color3.fromRGB(20, 20, 20)
+open.Text, open.TextColor3, open.Font, open.TextSize = "MF/I|O", Color3.new(1,1,1), Enum.Font.GothamBold, 18
+open.ZIndex, open.Draggable, open.Active = 9999, true, true
 Instance.new("UICorner", open)
-Instance.new("UIStroke", open).Color = Color3.new(1,1,1)
-
--- 核心修正：使用 MouseButton1Click 並確保 frame.Visible 狀態切換正確
-open.MouseButton1Click:Connect(function()
-    print("Toggle Clicked") -- 可以在 F9 檢查是否有印出這行
-    frame.Visible = not frame.Visible
-end)
+open.MouseButton1Click:Connect(function() frame.Visible = not frame.Visible end)
