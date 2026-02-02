@@ -1,0 +1,149 @@
+-- LocalScript：必須放在 ScreenGui 內部
+
+-- 服務獲取
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Player = Players.LocalPlayer
+
+-- 1. 路径定义
+local gui = script.Parent -- 脚本的父级就是 ScreenGui
+
+-- Sound 对象创建：直接在运行时创建 Sound 对象并放在 Player 下，确保它一定能被找到和播放
+local soundObject = Instance.new("Sound")
+soundObject.Parent = Player 
+soundObject.Volume = 0.5    
+soundObject.PlaybackSpeed = 1.0 
+soundObject.Name = "ClientMusicControllerSound"
+
+
+-- 2. GUI元素获取 (請確保您的 GUI 元素名稱與這裡完全一致)
+-- 如果這裡出現 'Infinite yield' 錯誤，請檢查您的 GUI 元素名稱是否拼寫錯誤。
+local musicIdInput = gui:WaitForChild("MusicIdInput")
+local volumeInput = gui:WaitForChild("VolumeInput")
+local speedInput = gui:WaitForChild("SpeedInput")
+local toggleInputButton = gui:WaitForChild("ToggleInputButton")
+local playPauseButton = gui:WaitForChild("PlayPauseButton")
+
+
+-- 3. 状态变量和初始设置
+local controlsEnabled = true 
+local isPlaying = false      
+volumeInput.Text = "0.5" 
+speedInput.Text = "1.0"  
+playPauseButton.Text = "▶️ 播放"
+toggleInputButton.Text = "关闭 输入框"
+
+
+-- 4. 辅助函数：应用声音属性
+local function applySoundProperties()
+    -- 设置 SoundId
+    local idText = musicIdInput.Text
+    soundObject.SoundId = "rbxassetid://" .. idText
+
+    -- 设置音量
+    local newVolume = tonumber(volumeInput.Text)
+    if newVolume and newVolume >= 0 and newVolume <= 1 then
+        soundObject.Volume = newVolume
+    end
+
+    -- 设置播放速度
+    local newSpeed = tonumber(speedInput.Text)
+    if newSpeed and newSpeed > 0 then
+        soundObject.PlaybackSpeed = newSpeed
+    end
+end
+
+-- 5. 按钮 1: 开关输入框 (ToggleInputButton)
+toggleInputButton.Activated:Connect(function()
+    controlsEnabled = not controlsEnabled 
+
+    -- 遍历 ScreenGui，只对 TextBox 进行操作 (显示/隐藏输入框)
+    for _, child in gui:GetChildren() do
+        if child:IsA("TextBox") then
+            child.Visible = controlsEnabled
+        end
+    end
+
+    if controlsEnabled then
+        toggleInputButton.Text = "关闭 输入框"
+        playPauseButton.Active = true
+    else
+        toggleInputButton.Text = "开启 输入框"
+        playPauseButton.Active = false
+    end
+end)
+
+-- 6. 按钮 2: 播放/暂停 (PlayPauseButton)
+playPauseButton.Activated:Connect(function()
+    if not controlsEnabled then return end
+
+    if isPlaying then
+        -- 暂停
+        soundObject:Pause()
+        isPlaying = false
+        playPauseButton.Text = "▶️ 继续播放"
+    else
+        -- 播放
+        applySoundProperties()
+        soundObject:Play()
+        isPlaying = true
+        playPauseButton.Text = "⏸️ 暂停播放"
+    end
+end)
+
+-- 7. 拖动功能 (拖动 ScreenGui)
+local dragging = false
+local dragStartPos
+local initialPos
+
+gui.InputBegan:Connect(function(input)
+    -- 只有在鼠标左键或触摸输入时才允许拖动
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStartPos = UserInputService:GetMouseLocation()
+        initialPos = UDim2.new(gui.Position.X.Scale, gui.Position.X.Offset, gui.Position.Y.Scale, gui.Position.Y.Offset)
+        input.Handled = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentPos = UserInputService:GetMouseLocation()
+        local deltaX = currentPos.X - dragStartPos.X
+        local deltaY = currentPos.Y - dragStartPos.Y
+        
+        local newOffsetX = initialPos.X.Offset + deltaX
+        local newOffsetY = initialPos.Y.Offset + deltaY
+
+        gui.Position = UDim2.new(initialPos.X.Scale, newOffsetX, initialPos.Y.Scale, newOffsetY)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- 8. 监听输入框变化 (可选)
+local function updatePropertiesOnEnter()
+    if isPlaying then
+        applySoundProperties()
+    end
+end
+
+volumeInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then updatePropertiesOnEnter() end
+end)
+
+speedInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then updatePropertiesOnEnter() end
+end)
+
+musicIdInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed and isPlaying then
+        soundObject:Stop() 
+        applySoundProperties() 
+        soundObject:Play()  
+    end
+end)
