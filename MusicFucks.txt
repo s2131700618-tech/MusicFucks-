@@ -1,164 +1,129 @@
--- 🚀 完全解禁版：移除音量上限 + 四階段流光 + 深度清理
-local Player = game:GetService("Players").LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-local RunService = game:GetService("RunService")
+local P, RS = game:GetService("Players").LocalPlayer, game:GetService("RunService")
+local PG = P:WaitForChild("PlayerGui")
 
--- 1. 【音訊清理】停止並刪除舊聲音，防止疊加播放
-local oldSound = Player:FindFirstChild("FinalSound")
-if oldSound then
-    oldSound:Stop()
-    oldSound:Destroy()
-    task.wait(0.1)
-end
+-- 1. 徹底清除舊版
+if PG:FindFirstChild("UltraV6_FinalFixed") then PG.UltraV6_FinalFixed:Destroy() end
 
--- 2. 【UI 清理】確保舊的變色 Loop 停止
-local oldUI = PlayerGui:FindFirstChild("MusicControl_MasterV9")
-if oldUI then 
-    oldUI:SetAttribute("Closed", true) 
-    oldUI:Destroy() 
-end
-
--- 建立全新聲音物件
-local sound = Instance.new("Sound")
-sound.Name = "FinalSound"
+local sound = P:FindFirstChild("UltraSnd") or Instance.new("Sound", P)
+sound.Name = "UltraSnd"
 sound.Looped = true
-sound.Parent = Player
 
-local sg = Instance.new("ScreenGui", PlayerGui)
-sg.Name = "MusicControl_MasterV9"
+local sg = Instance.new("ScreenGui", PG)
+sg.Name = "UltraV6_FinalFixed"
 sg.ResetOnSpawn = false
-sg.DisplayOrder = 100000
-sg:SetAttribute("Closed", false)
+sg.DisplayOrder = 999 -- 確保 UI 在所有東西最前面
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Global -- 暴力層級管理
 
--- --- 主面板 (360x280 完美比例) ---
+-- --- 主面板 ---
 local frame = Instance.new("Frame", sg)
-frame.Size = UDim2.new(0, 360, 0, 280)
-frame.Position = UDim2.new(0.5, -180, 0.5, -140)
-frame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
+frame.Size = UDim2.new(0, 360, 0, 300)
+frame.Position = UDim2.new(0.5, -180, 0.5, -150)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+frame.Active, frame.Draggable = true, true
+frame.Visible = true
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
--- 🌈 標題列：四階段流光漸層
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0, 45)
+-- ⬛ 標題框
+local bar = Instance.new("Frame", frame)
+bar.Size = UDim2.new(1, 0, 0, 50)
+bar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+bar.BorderSizePixel = 0
+Instance.new("UICorner", bar)
+
+-- 🌈 霓虹流光文字 (文字變色，框不變)
+local title = Instance.new("TextLabel", bar)
+title.Size = UDim2.new(1, 0, 1, 0)
+title.BackgroundTransparency = 1
 title.Text = "Ultra 音樂控制器 V6.1"
 title.TextSize = 24
 title.Font = Enum.Font.GothamBold
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-title.BorderSizePixel = 0
-Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+title.TextColor3 = Color3.new(1, 1, 1)
 
-local gradient = Instance.new("UIGradient", title)
+local grad = Instance.new("UIGradient", title)
 local phases = {
-    {Left = Color3.fromRGB(255, 165, 0), Right = Color3.fromRGB(255, 0, 0)},   -- 1. 左橙右紅
-    {Left = Color3.fromRGB(255, 255, 0), Right = Color3.fromRGB(255, 165, 0)}, -- 2. 左黃右橙
-    {Left = Color3.fromRGB(0, 255, 120), Right = Color3.fromRGB(0, 120, 255)}, -- 3. 左綠右藍
-    {Left = Color3.fromRGB(0, 255, 255), Right = Color3.fromRGB(170, 0, 255)}, -- 4. 左青右紫
+    {L = Color3.fromRGB(255, 165, 0), R = Color3.fromRGB(255, 0, 0)},
+    {L = Color3.fromRGB(255, 255, 0), R = Color3.fromRGB(255, 165, 0)},
+    {L = Color3.fromRGB(0, 255, 120), R = Color3.fromRGB(0, 120, 255)},
+    {L = Color3.fromRGB(0, 255, 255), R = Color3.fromRGB(170, 0, 255)},
 }
 
 task.spawn(function()
-    local step, progress = 1, 0
-    while true do
-        if sg:GetAttribute("Closed") == true then break end
-        progress = progress + 0.08
-        if progress >= 1 then progress = 0 step = (step % #phases) + 1 end
-        local nextStep = (step % #phases) + 1
-        gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, phases[step].Left:Lerp(phases[nextStep].Left, progress)),
-            ColorSequenceKeypoint.new(1, phases[step].Right:Lerp(phases[nextStep].Right, progress))
+    local s, p = 1, 0
+    while sg.Parent do
+        p = p + 0.03
+        if p >= 1 then p = 0 s = (s % #phases) + 1 end
+        local n = (s % #phases) + 1
+        grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, phases[s].L:Lerp(phases[n].L, p)),
+            ColorSequenceKeypoint.new(1, phases[s].R:Lerp(phases[n].R, p))
         })
-        RunService.RenderStepped:Wait()
+        RS.RenderStepped:Wait()
     end
 end)
 
--- 🛠️ 解禁版同步函數 (核心修改點)
-local function createInput(name, pos, default)
-    local label = Instance.new("TextLabel", frame)
-    label.Size = UDim2.new(0, 70, 0, 30)
-    label.Position = UDim2.new(0, 10, 0, pos)
-    label.Text = name
-    label.TextColor3 = Color3.fromRGB(200, 200, 200)
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Right
-    
-    local box = Instance.new("TextBox", frame)
-    box.Size = UDim2.new(0, 250, 0, 30)
-    box.Position = UDim2.new(0, 90, 0, pos)
-    box.Text = default
-    box.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    box.TextColor3 = Color3.fromRGB(255, 255, 255)
-    box.ClearTextOnFocus = false -- 點擊不消失文字
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
-    return box
+-- 🛠️ 功能輸入 (ID/音量/速度)
+local function createInp(txt, pos, def)
+    local l = Instance.new("TextLabel", frame)
+    l.Size, l.Position, l.Text, l.TextColor3, l.BackgroundTransparency = UDim2.new(0, 70, 0, 35), UDim2.new(0, 10, 0, pos), txt, Color3.new(0.8,0.8,0.8), 1
+    l.Font, l.TextXAlignment = Enum.Font.GothamBold, Enum.TextXAlignment.Right
+    local b = Instance.new("TextBox", frame)
+    b.Size, b.Position, b.Text, b.BackgroundColor3, b.TextColor3 = UDim2.new(0, 250, 0, 35), UDim2.new(0, 90, 0, pos), def, Color3.fromRGB(30,30,30), Color3.new(1,1,1)
+    b.ClearTextOnFocus = false
+    Instance.new("UICorner", b)
+    return b
 end
 
-local idBox = createInput("ID:", 60, "")
-local volBox = createInput("音量:", 100, "1")
-local spdBox = createInput("速度:", 140, "1")
+local idBox = createInp("ID:", 65, "")
+local volBox = createInp("音量:", 110, "1")
+local spdBox = createInp("速度:", 155, "1")
 
--- 【解禁邏輯】直接讀取數值，不使用 math.clamp 限制
-local function sync()
-    local v = tonumber(volBox.Text) or 0
-    local s = tonumber(spdBox.Text) or 1
-    sound.Volume = v
-    sound.PlaybackSpeed = s
+-- 🔘 按鈕 (加入觸覺反饋)
+local function makeBtn(txt, pos, col, func)
+    local b = Instance.new("TextButton", frame)
+    b.Size, b.Position, b.BackgroundColor3 = UDim2.new(0.9, 0, 0, 40), UDim2.new(0.05, 0, 0, pos), col
+    b.Text, b.TextColor3, b.Font = txt, Color3.new(1,1,1), Enum.Font.GothamBold
+    b.AutoButtonColor = true
+    Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(func) -- 使用更穩定的 Click 事件
+    return b
 end
 
-volBox:GetPropertyChangedSignal("Text"):Connect(sync)
-spdBox:GetPropertyChangedSignal("Text"):Connect(sync)
-
--- 🔄 循環播放按鈕
-local loopBtn = Instance.new("TextButton", frame)
-loopBtn.Size = UDim2.new(0.9, 0, 0, 35)
-loopBtn.Position = UDim2.new(0.05, 0, 0, 185)
-loopBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-loopBtn.Text = "🔄 循環播放: 開啟"
-loopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-loopBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", loopBtn).CornerRadius = UDim.new(0, 8)
-
-loopBtn.Activated:Connect(function()
+local loopBtn = makeBtn("🔄 循環播放: 開啟", 205, Color3.fromRGB(40,110,40), function()
     sound.Looped = not sound.Looped
     loopBtn.Text = sound.Looped and "🔄 循環播放: 開啟" or "❌ 循環播放: 關閉"
-    loopBtn.BackgroundColor3 = sound.Looped and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+    loopBtn.BackgroundColor3 = sound.Looped and Color3.fromRGB(40,110,40) or Color3.fromRGB(110,40,40)
 end)
 
--- ▶️ 播放按鈕
-local playBtn = Instance.new("TextButton", frame)
-playBtn.Size = UDim2.new(0.9, 0, 0, 40)
-playBtn.Position = UDim2.new(0.05, 0, 0, 230)
-playBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-playBtn.Text = "▶️ 播放 / 停止"
-playBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-playBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", playBtn).CornerRadius = UDim.new(0, 8)
-
-playBtn.Activated:Connect(function()
-    if sound.IsPlaying then 
-        sound:Stop() 
-    else
+makeBtn("▶️ 播放 / 停止", 250, Color3.fromRGB(0,100,200), function()
+    if sound.IsPlaying then sound:Stop() else
         local id = idBox.Text:match("%d+")
         if id then 
             sound.SoundId = "rbxassetid://"..id 
-            sync() 
+            sound.Volume = tonumber(volBox.Text) or 1
+            sound.PlaybackSpeed = tonumber(spdBox.Text) or 1
             sound:Play() 
         end
     end
 end)
 
--- 🎵 側邊開關
-local openBtn = Instance.new("TextButton", sg)
-openBtn.Size = UDim2.new(0, 120, 0, 50)
-openBtn.Position = UDim2.new(0.95, -60, 0, -25)
-openBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-openBtn.BackgroundTransparency = 0.4
-openBtn.Text = "MF/I|O"
-openBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-openBtn.TextSize = 18
-openBtn.ZIndex = 2000000 
-Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 12)
+-- 🎵 MF/I|O 側邊開關 (解決按不了的問題)
+local open = Instance.new("TextButton", sg)
+open.Name = "ToggleOpen"
+open.Size = UDim2.new(0, 90, 0, 40)
+open.Position = UDim2.new(0.85, 0, 0.15, 0)
+open.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+open.Text = "MF/I|O"
+open.TextSize = 24
+open.TextColor3 = Color3.new(1, 1, 1)
+open.Font = Enum.Font.GothamBold
+open.ZIndex = 9999 -- 極高層級
+open.Draggable = true 
+open.Active = true 
+Instance.new("UICorner", open)
+Instance.new("UIStroke", open).Color = Color3.new(1,1,1)
 
-openBtn.Activated:Connect(function() frame.Visible = not frame.Visible end)
+-- 核心修正：使用 MouseButton1Click 並確保 frame.Visible 狀態切換正確
+open.MouseButton1Click:Connect(function()
+    print("Toggle Clicked") -- 可以在 F9 檢查是否有印出這行
+    frame.Visible = not frame.Visible
+end)
