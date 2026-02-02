@@ -63,7 +63,7 @@ task.spawn(function()
     local step, progress = 1, 0
     while true do
         if sg:GetAttribute("Closed") == true then break end
-        progress = progress + 0.008 
+        progress = progress + 0.08
         if progress >= 1 then progress = 0 step = (step % #phases) + 1 end
         local nextStep = (step % #phases) + 1
         gradient.Color = ColorSequence.new({
