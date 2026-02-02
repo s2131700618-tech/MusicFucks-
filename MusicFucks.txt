@@ -1,149 +1,164 @@
--- LocalScript：必須放在 ScreenGui 內部
+-- 🚀 完全解禁版：移除音量上限 + 四階段流光 + 深度清理
+local Player = game:GetService("Players").LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local RunService = game:GetService("RunService")
 
--- 服務獲取
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local Player = Players.LocalPlayer
-
--- 1. 路径定义
-local gui = script.Parent -- 脚本的父级就是 ScreenGui
-
--- Sound 对象创建：直接在运行时创建 Sound 对象并放在 Player 下，确保它一定能被找到和播放
-local soundObject = Instance.new("Sound")
-soundObject.Parent = Player 
-soundObject.Volume = 0.5    
-soundObject.PlaybackSpeed = 1.0 
-soundObject.Name = "ClientMusicControllerSound"
-
-
--- 2. GUI元素获取 (請確保您的 GUI 元素名稱與這裡完全一致)
--- 如果這裡出現 'Infinite yield' 錯誤，請檢查您的 GUI 元素名稱是否拼寫錯誤。
-local musicIdInput = gui:WaitForChild("MusicIdInput")
-local volumeInput = gui:WaitForChild("VolumeInput")
-local speedInput = gui:WaitForChild("SpeedInput")
-local toggleInputButton = gui:WaitForChild("ToggleInputButton")
-local playPauseButton = gui:WaitForChild("PlayPauseButton")
-
-
--- 3. 状态变量和初始设置
-local controlsEnabled = true 
-local isPlaying = false      
-volumeInput.Text = "0.5" 
-speedInput.Text = "1.0"  
-playPauseButton.Text = "▶️ 播放"
-toggleInputButton.Text = "关闭 输入框"
-
-
--- 4. 辅助函数：应用声音属性
-local function applySoundProperties()
-    -- 设置 SoundId
-    local idText = musicIdInput.Text
-    soundObject.SoundId = "rbxassetid://" .. idText
-
-    -- 设置音量
-    local newVolume = tonumber(volumeInput.Text)
-    if newVolume and newVolume >= 0 and newVolume <= 1 then
-        soundObject.Volume = newVolume
-    end
-
-    -- 设置播放速度
-    local newSpeed = tonumber(speedInput.Text)
-    if newSpeed and newSpeed > 0 then
-        soundObject.PlaybackSpeed = newSpeed
-    end
+-- 1. 【音訊清理】停止並刪除舊聲音，防止疊加播放
+local oldSound = Player:FindFirstChild("FinalSound")
+if oldSound then
+    oldSound:Stop()
+    oldSound:Destroy()
+    task.wait(0.1)
 end
 
--- 5. 按钮 1: 开关输入框 (ToggleInputButton)
-toggleInputButton.Activated:Connect(function()
-    controlsEnabled = not controlsEnabled 
+-- 2. 【UI 清理】確保舊的變色 Loop 停止
+local oldUI = PlayerGui:FindFirstChild("MusicControl_MasterV9")
+if oldUI then 
+    oldUI:SetAttribute("Closed", true) 
+    oldUI:Destroy() 
+end
 
-    -- 遍历 ScreenGui，只对 TextBox 进行操作 (显示/隐藏输入框)
-    for _, child in gui:GetChildren() do
-        if child:IsA("TextBox") then
-            child.Visible = controlsEnabled
+-- 建立全新聲音物件
+local sound = Instance.new("Sound")
+sound.Name = "FinalSound"
+sound.Looped = true
+sound.Parent = Player
+
+local sg = Instance.new("ScreenGui", PlayerGui)
+sg.Name = "MusicControl_MasterV9"
+sg.ResetOnSpawn = false
+sg.DisplayOrder = 100000
+sg:SetAttribute("Closed", false)
+
+-- --- 主面板 (360x280 完美比例) ---
+local frame = Instance.new("Frame", sg)
+frame.Size = UDim2.new(0, 360, 0, 280)
+frame.Position = UDim2.new(0.5, -180, 0.5, -140)
+frame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+-- 🌈 標題列：四階段流光漸層
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 45)
+title.Text = "Ultra 音樂控制器 V6.1"
+title.TextSize = 24
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+title.BorderSizePixel = 0
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+
+local gradient = Instance.new("UIGradient", title)
+local phases = {
+    {Left = Color3.fromRGB(255, 165, 0), Right = Color3.fromRGB(255, 0, 0)},   -- 1. 左橙右紅
+    {Left = Color3.fromRGB(255, 255, 0), Right = Color3.fromRGB(255, 165, 0)}, -- 2. 左黃右橙
+    {Left = Color3.fromRGB(0, 255, 120), Right = Color3.fromRGB(0, 120, 255)}, -- 3. 左綠右藍
+    {Left = Color3.fromRGB(0, 255, 255), Right = Color3.fromRGB(170, 0, 255)}, -- 4. 左青右紫
+}
+
+task.spawn(function()
+    local step, progress = 1, 0
+    while true do
+        if sg:GetAttribute("Closed") == true then break end
+        progress = progress + 0.008 
+        if progress >= 1 then progress = 0 step = (step % #phases) + 1 end
+        local nextStep = (step % #phases) + 1
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, phases[step].Left:Lerp(phases[nextStep].Left, progress)),
+            ColorSequenceKeypoint.new(1, phases[step].Right:Lerp(phases[nextStep].Right, progress))
+        })
+        RunService.RenderStepped:Wait()
+    end
+end)
+
+-- 🛠️ 解禁版同步函數 (核心修改點)
+local function createInput(name, pos, default)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0, 70, 0, 30)
+    label.Position = UDim2.new(0, 10, 0, pos)
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Right
+    
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(0, 250, 0, 30)
+    box.Position = UDim2.new(0, 90, 0, pos)
+    box.Text = default
+    box.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.ClearTextOnFocus = false -- 點擊不消失文字
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
+    return box
+end
+
+local idBox = createInput("ID:", 60, "")
+local volBox = createInput("音量:", 100, "1")
+local spdBox = createInput("速度:", 140, "1")
+
+-- 【解禁邏輯】直接讀取數值，不使用 math.clamp 限制
+local function sync()
+    local v = tonumber(volBox.Text) or 0
+    local s = tonumber(spdBox.Text) or 1
+    sound.Volume = v
+    sound.PlaybackSpeed = s
+end
+
+volBox:GetPropertyChangedSignal("Text"):Connect(sync)
+spdBox:GetPropertyChangedSignal("Text"):Connect(sync)
+
+-- 🔄 循環播放按鈕
+local loopBtn = Instance.new("TextButton", frame)
+loopBtn.Size = UDim2.new(0.9, 0, 0, 35)
+loopBtn.Position = UDim2.new(0.05, 0, 0, 185)
+loopBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+loopBtn.Text = "🔄 循環播放: 開啟"
+loopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+loopBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", loopBtn).CornerRadius = UDim.new(0, 8)
+
+loopBtn.Activated:Connect(function()
+    sound.Looped = not sound.Looped
+    loopBtn.Text = sound.Looped and "🔄 循環播放: 開啟" or "❌ 循環播放: 關閉"
+    loopBtn.BackgroundColor3 = sound.Looped and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+end)
+
+-- ▶️ 播放按鈕
+local playBtn = Instance.new("TextButton", frame)
+playBtn.Size = UDim2.new(0.9, 0, 0, 40)
+playBtn.Position = UDim2.new(0.05, 0, 0, 230)
+playBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+playBtn.Text = "▶️ 播放 / 停止"
+playBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+playBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", playBtn).CornerRadius = UDim.new(0, 8)
+
+playBtn.Activated:Connect(function()
+    if sound.IsPlaying then 
+        sound:Stop() 
+    else
+        local id = idBox.Text:match("%d+")
+        if id then 
+            sound.SoundId = "rbxassetid://"..id 
+            sync() 
+            sound:Play() 
         end
     end
-
-    if controlsEnabled then
-        toggleInputButton.Text = "关闭 输入框"
-        playPauseButton.Active = true
-    else
-        toggleInputButton.Text = "开启 输入框"
-        playPauseButton.Active = false
-    end
 end)
 
--- 6. 按钮 2: 播放/暂停 (PlayPauseButton)
-playPauseButton.Activated:Connect(function()
-    if not controlsEnabled then return end
+-- 🎵 側邊開關
+local openBtn = Instance.new("TextButton", sg)
+openBtn.Size = UDim2.new(0, 50, 0, 50)
+openBtn.Position = UDim2.new(0, 10, 0.5, -25)
+openBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+openBtn.BackgroundTransparency = 0.4
+openBtn.Text = "🎵"
+openBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+openBtn.TextSize = 30
+openBtn.ZIndex = 2000000 
+Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 12)
 
-    if isPlaying then
-        -- 暂停
-        soundObject:Pause()
-        isPlaying = false
-        playPauseButton.Text = "▶️ 继续播放"
-    else
-        -- 播放
-        applySoundProperties()
-        soundObject:Play()
-        isPlaying = true
-        playPauseButton.Text = "⏸️ 暂停播放"
-    end
-end)
-
--- 7. 拖动功能 (拖动 ScreenGui)
-local dragging = false
-local dragStartPos
-local initialPos
-
-gui.InputBegan:Connect(function(input)
-    -- 只有在鼠标左键或触摸输入时才允许拖动
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStartPos = UserInputService:GetMouseLocation()
-        initialPos = UDim2.new(gui.Position.X.Scale, gui.Position.X.Offset, gui.Position.Y.Scale, gui.Position.Y.Offset)
-        input.Handled = true
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local currentPos = UserInputService:GetMouseLocation()
-        local deltaX = currentPos.X - dragStartPos.X
-        local deltaY = currentPos.Y - dragStartPos.Y
-        
-        local newOffsetX = initialPos.X.Offset + deltaX
-        local newOffsetY = initialPos.Y.Offset + deltaY
-
-        gui.Position = UDim2.new(initialPos.X.Scale, newOffsetX, initialPos.Y.Scale, newOffsetY)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
--- 8. 监听输入框变化 (可选)
-local function updatePropertiesOnEnter()
-    if isPlaying then
-        applySoundProperties()
-    end
-end
-
-volumeInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed then updatePropertiesOnEnter() end
-end)
-
-speedInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed then updatePropertiesOnEnter() end
-end)
-
-musicIdInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed and isPlaying then
-        soundObject:Stop() 
-        applySoundProperties() 
-        soundObject:Play()  
-    end
-end)
+openBtn.Activated:Connect(function() frame.Visible = not frame.Visible end)
